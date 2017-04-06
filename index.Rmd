@@ -1,0 +1,177 @@
+---
+title: "Introducton to R"
+author: "Jingtong Feng"
+output:
+  html_document:
+    fig_height: 7
+    fig_width: 9
+    keep_md: yes
+    toc: yes
+    toc_float: yes
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+
+```
+
+# Basic mapping-crime map
+
+There are many different options for mapping, but we are going to focus on *GIStools*, which depends on several packages, including *maptools*, *rgdal*, and *sp*.
+
+
+
+```{r, tidy = FALSE, echo = FALSE}
+rm(list= ls()) # Clear environment
+
+# install.packages("GISTools")
+# library(GISTools) # Note all the dependent packages loaded
+
+library(GISTools, suppressPackageStartupMessages("True")) # Lead package without oodles of messages
+
+data(newhaven) # Convenient collection of data
+```
+
+Plotting once these packages (*sp* in particular) are loaded is pretty straightforward; R now knows how to deal with these data types.
+
+Let's make a quick crime map
+
+```{r, tidy = TRUE}
+# head(blocks) # This is a MESS
+head(data.frame(blocks)) # Coerce to dataframe first
+plot(blocks, lwd = 0.5, col = "darkseagreen1", border = "white") # Plot the 'lowest' first.
+plot(roads, add = TRUE, col = "slategray3") # Roads on top
+plot(breach, pch = 17, add = TRUE, col =add.alpha("#EE2C2C", .7)) # Add transparency
+```
+
+The *Locator* function lets you interact directly with the plot. You click within the plot, and it returns the coordinates of where you clicked. This is a reasonable way to get the coordinates when you are placing things like legends within the plot.
+
+```{r tidy =FALSE}
+# locator() # Get Coordinates (commented for markdown)
+plot(blocks, lwd = 0.5, col = "cornsilk", border = "antiquewhite2")
+plot(roads, add = TRUE, col = "slategray3") 
+plot(breach, pch = 20, add = TRUE, col ="red")
+
+# Add a scale bar, if you're into that
+map.scale(xc = 540000, yc = 152000, # Position on map, in map units
+          len = miles2ft(2), # Length in feet (2 * 5,280)
+          units = "Miles", 
+          ndivs = 4, 
+          subdiv = 0.5)
+
+#locator() # Click once on location, then hit finish button in plot window OR use the Esc key
+
+# North arrow
+north.arrow(xb = 540000, yb = 157000, 
+            len = miles2ft(.2), # Length of base
+            col = "gray60",
+            border = "gray30",
+            tcol = "gray60") # Color
+
+title(main = 'New Haven, CT.') # Title
+
+title(main = "Crime Infested Wasteland", # Informative subtitle
+      line = -.2, # Move down
+      col.main = "red3",
+      font.main = 4, # Bold italic
+      cex.main = 1) # make a little smaller
+```
+
+#Choropleth Maps
+This is essentially a basic reference map, but we can also use the attribute data within the spatial classes to make thematic maps, such as choropleth maps. There are many ways to create choropleth maps, including a whole friggin' package called *choroplethr*, but let's use *GISTools* for consistency, which has some functions specifically for that. Let's make two maps with the data we have: percent vacant and percent owner occupied.
+
+```{r, tidy = TRUE}
+# head(data.frame(blocks)) # Look at our data again
+
+colnames(data.frame(blocks)) # Just the attribute names
+
+blocks$P_VACANT[1:5] # Can be treated like a dataframe... sometimes  
+
+# hist(blocks$P_VACANT) #Same for graphing
+display.brewer.pal(5, "Blues")
+
+# auto.shading builds off of color brewer to create classes
+# Needs to be stored separately
+shades.blue  <-  auto.shading(blocks$P_VACANT, cols = brewer.pal(7,'Blues')[3:7]) #Create a new color palette
+
+shades.blue # Note class breaks
+
+# ?auto.shading # Part of GIStools
+
+choropleth(blocks, 
+           v = blocks$P_VACANT, # Variable to be mapped
+           shading = shades.blue, # Shading object created above
+           bg = "gray30", # Background color
+           border = NA # No Border
+           ) 
+
+plot(blocks,
+     add = TRUE,
+     col=NA, 
+     border = add.alpha("#FFFFFF", .2) # partly transparent white
+     )
+
+# choropleth maps attributes held in SpatialPolygons DataFrame (e.g., 'blocks')
+choro.legend(px = 533000, py = 161000, 
+             sh = shades.blue,
+             border = "#FFFFFF80", # Semitransparent white around boxes
+             bg = NA, # No background color,
+             bty = "n", # No outer box
+             text.col = "red", # Broken apparently
+             title.col = "white"
+             )
+
+title(main = "Percent Vacant",
+      col.main = "gray20")
+
+
+# Create new set of shades for Owner occupied percentage
+shades.yell  <-  auto.shading(blocks$P_OWNEROCC,cols=brewer.pal(5,'YlOrRd')) #Create a new color palette
+
+choropleth(blocks, blocks$P_OWNEROCC, 
+           shading = shades.yell, # Shading object created above
+           bg = "gray30", # Background color
+           border = NA # No Border
+           ) 
+           
+plot(blocks,
+     add = TRUE,
+     col=NA, 
+     border = add.alpha("#000000", .15) # partly transparent black
+     )
+
+choro.legend(px = 533000, py = 161000, 
+             sh = shades.yell,
+             border = NA,
+             bg = NA, # No background color,
+             bty = "n" # No outer box
+             )
+# Add title
+title(main = "Percent Owner Occupied",
+      col.main = "gray20")
+```
+
+Now, what would be even more interesting to put these side by side. Note that color choice is important, so these would probably work better with swapped palettes, since red is usually associated with 'negative' variables.
+
+```{r, tidy = TRUE}
+o.par <- par(no.readonly = FALSE)
+
+# Put them side by side, adjust margins
+par(mfrow = c (1,2), mar = c(1,0,1,0)) # mar =bottom, left, top, right
+
+# Vacant Map
+choropleth(blocks, v = blocks$P_VACANT, shading = shades.blue, bg = "gray30", border = NA) 
+plot(blocks, add = TRUE, col = NA, border = add.alpha("#FFFFFF", .2))
+choro.legend(px = 533000, py = 161000, sh = shades.blue, border = "#FFFFFF80", bg = NA, bty = "n", text.col = "red", title.col = "white")
+title(main = "Percent Vacant", col.main = "white", line = -1)
+
+# Owner Occupied Map
+choropleth(blocks, blocks$P_OWNEROCC, shading = shades.yell, bg = "gray30", border = NA) 
+plot(blocks, add = TRUE, col=NA, border = "gray15" ) # Alpha not working on second plot??
+choro.legend(px = 533000, py = 161000, sh = shades.yell, border = NA, bg = NA, bty = "n" )
+title(main = "Percent Owner Occupied", col.main = "white", line = -1)
+
+par(o.par)
+
+```
