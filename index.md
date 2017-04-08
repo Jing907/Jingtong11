@@ -17,8 +17,22 @@ I extracted the variales of date and time of the incident occurence, boroughs, c
 
 #### Data wrangling
 
+```r
+library(dplyr)
+setwd("D:/One_Jing")
+nycrime <- read.csv(file = "NYPD.csv", header = TRUE)
+crime <- dplyr::select(nycrime, CMPLNT_NUM, CMPLNT_FR_DT, CMPLNT_FR_TM, BORO_NM, 
+    OFNS_DESC, LAW_CAT_CD, Latitude, Longitude, Lat_Lon)
+```
+We select three crime types.
 
+```r
+library(readr)
+library(lubridate)
 
+coltypes <- list(CMPLNT_FR_DT = col_datetime("%Y-%m-%d %H:%M:%S"))
+unique(crime$OFNS_DESC)
+```
 
 ```
 ##  [1] DANGEROUS DRUGS                     
@@ -87,6 +101,15 @@ I extracted the variales of date and time of the incident occurence, boroughs, c
 ## 63 Levels:  ADMINISTRATIVE CODE ... VEHICLE AND TRAFFIC LAWS
 ```
 
+```r
+mapdata <- crime %>% filter(crime$OFNS_DESC %in% c("ROBBERY", "HARRASSMENT 2", 
+    "FELONY ASSAULT"))
+
+mapdata <- na.omit(mapdata)
+OFNS_DESC <- na.omit(mapdata$OFNS_DESC)
+mapdata %>% group_by(OFNS_DESC) %>% summarise(n = n())
+```
+
 ```
 ## # A tibble: 3 × 2
 ##        OFNS_DESC     n
@@ -98,19 +121,83 @@ I extracted the variales of date and time of the incident occurence, boroughs, c
 
 
 #### Mapping
-![](index_files/figure-html/unnamed-chunk-3-1.png)<!-- -->![](index_files/figure-html/unnamed-chunk-3-2.png)<!-- -->
+We get the map of NYC.
+
+```r
+library(ggplot2)
+library(ggmap)
+library(rgdal)
+mapdata <- crime %>% filter(crime$OFNS_DESC %in% c("ROBBERY", "HARRASSMENT 2", 
+    "FELONY ASSAULT"))
+myLocation <- c("New York City")
+map <- get_map(location = "New York City", zoom = 18, source = "google")
+myMap <- get_map(location = myLocation, source = "google", scale = 2, maptype = "roadmap", 
+    crop = FALSE)
+ggmap(myMap)
+```
+
+![](index_files/figure-html/unnamed-chunk-3-1.png)<!-- -->
+
+```r
+# Building an obvious first map, one with a point for each crime in the
+# dataset.
+ggmap(myMap, extent = "device", legend = "topleft") + geom_point(aes(x = as.numeric(Longitude), 
+    y = as.numeric(Latitude), color = OFNS_DESC), data = mapdata, size = 0.2) + 
+    ggtitle("Crime in NYC") + scale_size(range = c(3, 20))
+```
+
+![](index_files/figure-html/unnamed-chunk-3-2.png)<!-- -->
 
 
 #### Comparing the three selected crimes
+The colors all overlap and obscure one another. No patterns are readily visible. So I decide to create a map by category will be more revealing.
+
+
+```r
+ggmap(myMap, extent = "device") + geom_point(aes(x = as.numeric(Longitude), 
+    y = as.numeric(Latitude), colour = OFNS_DESC), data = mapdata, size = 0.2) + 
+    scale_colour_discrete(guide = "none") + facet_wrap(~OFNS_DESC) + ggtitle("Crime in New York City") + 
+    scale_size(range = c(3, 20))
+```
+
 ![](index_files/figure-html/unnamed-chunk-4-1.png)<!-- -->
 
 
 #### Creating Density Map
+Now try a contour plot. We will estimate the density of crimes from our longitude and latitudes and use that to plot contours. This should more easily reveal patterns and hotspots for the selected crimes.
+
+```r
+contours <- stat_density2d(aes(x = as.numeric(Longitude), y = as.numeric(Latitude), 
+    fill = ..level.., alpha = ..level..), size = 0.1, data = mapdata, n = 200, 
+    geom = "polygon")
+ggmap(myMap, extent = "device", legend = "topleft") + contours + scale_alpha_continuous(range = c(0.25, 
+    0.4), guide = "none") + scale_fill_gradient("Violent\nCrime\nDensity") + 
+    ggtitle("Crime in New York City")
+```
+
 ![](index_files/figure-html/unnamed-chunk-5-1.png)<!-- -->
 
 
 #### Take a closer look of the Harlem area
-![](index_files/figure-html/unnamed-chunk-6-1.png)<!-- -->![](index_files/figure-html/unnamed-chunk-6-2.png)<!-- -->
+This map seems much more informative. It reveals a giant hotspot in the Harlem neighborhood, with smaller hotspots in the surrounding neighborhoods. Additionally, there are spots in the southern Bronx area. So pull the map in to focus on these areas. Additionally, lets look at maps by specific category of crime.
+
+```r
+lims <- coord_map(xlim = c(-73.74, -74.1), ylim = c(40.61, 40.92))
+
+ggmap(myMap, extent = "device", legend = "topleft") + lims + contours + scale_alpha_continuous(range = c(0.25, 
+    0.4), guide = "none") + scale_fill_gradient("Violent\nCrime\nDensity") + 
+    ggtitle("Violent Crime in New York City")
+```
+
+![](index_files/figure-html/unnamed-chunk-6-1.png)<!-- -->
+
+```r
+ggmap(myMap, extent = "device") + lims + contours + scale_alpha_continuous(range = c(0.25, 
+    0.4), guide = "none") + scale_fill_gradient("Violent\nCrime\nDensity") + 
+    facet_wrap(~OFNS_DESC) + ggtitle("Violent Crime in New York City")
+```
+
+![](index_files/figure-html/unnamed-chunk-6-2.png)<!-- -->
 
 
 #### Observation
@@ -118,8 +205,8 @@ I extracted the variales of date and time of the incident occurence, boroughs, c
 The overall structure of the contours seem to be about the same as the aggregate, with the largest hotspot centered in the harlem neighborhood southern Brox area. With Felony Assault and Robbery, these occurrences seem to be much more concentrated. Additionally, a hotspot for Harassment appears in the same area. Also, these three crime types generated the shades in the lower Manhattan area and Brooklyn area. 
 
 #### References
-#### GGPlot2 Documentation)[https://cran.r-project.org/web/packages/ggplot2/ggplot2.pdf].
-#### GGPlot2 Quickstart [https://www.nceas.ucsb.edu/~frazier/RSpatialGuides/ggmap/ggmapCheatsheet.pdf].
+##### GGPlot2 Documentation)[https://cran.r-project.org/web/packages/ggplot2/ggplot2.pdf].
+##### GGPlot2 Quickstart [https://www.nceas.ucsb.edu/~frazier/RSpatialGuides/ggmap/ggmapCheatsheet.pdf].
 
 
 
