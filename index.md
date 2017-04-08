@@ -172,6 +172,7 @@ ggmap(myMap, extent = "device", legend = "topleft") + contours + scale_alpha_con
 ```
 
 ![](index_files/figure-html/unnamed-chunk-5-1.png)<!-- -->
+
 ## Take a closer look of the Harlem area
 This map seems much more informative. It reveals a giant hotspot in the Harlem neighborhood, with smaller hotspots in the surrounding neighborhoods. Additionally, there are spots in the southern Bronx area. So pull the map in to focus on these areas. Additionally, lets look at maps by specific category of crime.
 
