@@ -1,6 +1,6 @@
 ---
-title: "Introducton to R"
-author: "Jingtong Feng"
+title: "Mapping and Visualizing Crime"  
+author: "Jingtong Feng and Zhaohu(Jonathan) Fan"
 output:
   html_document:
     fig_height: 7
@@ -16,9 +16,122 @@ knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
 
 ```
 
-# Basic mapping-crime map
 
-There are many different options for mapping, but we are going to focus on *GIStools*, which depends on several packages, including *maptools*, *rgdal*, and *sp*.
+# Project 1
+
+#### Introduction
+The 2016 New York City crime dataset provides a special opportunity to play with data visually. As a a resident living close to Harlem, I am interested to see the crimes patterns near the neighborhood. Since the dataset covers a wide variety of crimes, visualizing them all at once might wash out any patterns contained in smaller subgroups. I have elected to see if there are any patterns within three selected crimes (Robbery, Harrassment, and Felony Assault) that can be explored visually.
+
+
+#### The Data
+The data was downloaded from the NYC Open Data (https://data.cityofnewyork.us/Public-Safety/NYPD-Complaint-Data-Current-YTD/5uac-w243)
+I extracted the variales of date and time of the incident occurence, boroughs, categories of the crimes, and the coordinates (latitude and longitude) of the incident. 
+
+
+#### Data wrangling
+```{r, tidy = FALSE, echo = FALSE}
+library(dplyr)
+setwd('D:/One_Jing')
+nycrime<- read.csv(file="NYPD.csv",header = TRUE)
+crime<-dplyr::select(nycrime, CMPLNT_NUM, CMPLNT_FR_DT, CMPLNT_FR_TM, BORO_NM,OFNS_DESC,LAW_CAT_CD, Latitude, Longitude, Lat_Lon)
+```
+
+
+```{r, tidy = TRUE, echo = FALSE}
+library(readr)
+library(lubridate)
+
+coltypes <-list(CMPLNT_FR_DT = col_datetime("%Y-%m-%d %H:%M:%S"))
+unique(crime$OFNS_DESC)
+
+##Select three crime types
+mapdata <-crime %>% filter(crime$OFNS_DESC %in% c("ROBBERY", "HARRASSMENT 2", "FELONY ASSAULT"))
+
+mapdata <- na.omit(mapdata)
+OFNS_DESC <- na.omit(mapdata$OFNS_DESC)
+mapdata %>% group_by(OFNS_DESC) %>%summarise(n=n())
+```
+
+
+#### Mapping
+```{r, tidy = TRUE, echo = FALSE}
+library(ggplot2)
+library(ggmap)
+library(rgdal)
+
+mapdata<-crime %>% filter(crime$OFNS_DESC %in% c("ROBBERY", "HARRASSMENT 2", "FELONY ASSAULT"))
+
+#get the map of NYC
+myLocation <- c("New York City")
+map <- get_map(location = "New York City", zoom = 18, source = "google")
+myMap <- get_map(location=myLocation, source="google",scale = 2, maptype= "roadmap", crop=FALSE)
+ggmap(myMap)
+
+#Building an obvious first map, one with a point for each crime in the dataset.
+ggmap(myMap, extent='device', legend="topleft") +
+geom_point(aes(x=as.numeric(Longitude), y=as.numeric(Latitude), color = OFNS_DESC), data=mapdata, size=0.2) + ggtitle('Crime in NYC') + scale_size(range = c(3, 20))
+```
+
+
+#### Comparing the three selected crimes
+```{r, tidy = TRUE, echo = FALSE}
+#The colors all overlap and obscure one another. No patterns are readily visible. So I decide to create a map by category will be more revealing.
+
+ggmap(myMap, extent='device') +
+geom_point(aes(x=as.numeric(Longitude), y=as.numeric(Latitude), colour=OFNS_DESC), data=mapdata,size=0.2) + scale_colour_discrete(guide='none') + facet_wrap(~OFNS_DESC) +
+ggtitle('Crime in New York City') + scale_size(range = c(3, 20))
+
+```
+
+
+#### Creating Density Map
+```{r, tidy = TRUE, echo = FALSE}
+#Now try a contour plot. We will estimate the density of crimes from our longitude and latitudes and use that to plot contours. This should more easily reveal patterns and hotspots for the selected crimes.
+
+contours <- stat_density2d(aes(x=as.numeric(Longitude), y=as.numeric(Latitude), fill = ..level.., alpha=..level..), size = 0.1, data = mapdata, n=200,geom = "polygon")
+
+ggmap(myMap, extent='device', legend="topleft") + contours +scale_alpha_continuous(range=c(0.25,0.4), guide='none')+scale_fill_gradient('Violent\nCrime\nDensity')+ggtitle('Crime in New York City')
+
+```
+
+
+#### Take a closer look of the Harlem area
+```{r, tidy = TRUE, echo = FALSE}
+#This map seems much more informative. It reveals a giant hotspot in the Harlem neighborhood, with smaller hotspots in the surrounding neighborhoods. Additionally, there are spots in the southern Bronx area.
+#So pull the map in to focus on these areas. Additionally, lets look at maps by specific category of crime.
+
+lims <- coord_map(xlim=c(-73.74, -74.1), ylim=c(40.61, 40.92))
+
+ggmap(myMap, extent='device', legend="topleft") + lims + contours +
+scale_alpha_continuous(range=c(0.25,0.4), guide='none') +
+scale_fill_gradient('Violent\nCrime\nDensity')+
+ggtitle('Violent Crime in New York City')
+
+
+ggmap(myMap, extent='device') + lims + contours +
+scale_alpha_continuous(range=c(0.25,0.4), guide='none') +
+scale_fill_gradient('Violent\nCrime\nDensity') +
+facet_wrap(~OFNS_DESC) +
+ggtitle('Violent Crime in New York City')
+
+```
+
+
+#### Observation
+
+The overall structure of the contours seem to be about the same as the aggregate, with the largest hotspot centered in the harlem neighborhood southern Brox area. With Felony Assault and Robbery, these occurrences seem to be much more concentrated. Additionally, a hotspot for Harassment appears in the same area. Also, these three crime types generated the shades in the lower Manhattan area and Brooklyn area. 
+
+#### References
+#### GGPlot2 Documentation)[https://cran.r-project.org/web/packages/ggplot2/ggplot2.pdf].
+#### GGPlot2 Quickstart [https://www.nceas.ucsb.edu/~frazier/RSpatialGuides/ggmap/ggmapCheatsheet.pdf].
+
+
+
+
+# Project 2
+## Introduction
+
+There are many different options for mapping, but we are going to focus on *GIStools*, which depends on several packages, including *maptools*, *rgdal*, and *sp*, and build up a basic mapping-crime map of New Haven, CT.
 
 
 
@@ -78,7 +191,7 @@ title(main = "Crime Infested Wasteland", # Informative subtitle
       cex.main = 1) # make a little smaller
 ```
 
-#Choropleth Maps
+## Choropleth Maps
 This is essentially a basic reference map, but we can also use the attribute data within the spatial classes to make thematic maps, such as choropleth maps. There are many ways to create choropleth maps, including a whole friggin' package called *choroplethr*, but let's use *GISTools* for consistency, which has some functions specifically for that. Let's make two maps with the data we have: percent vacant and percent owner occupied.
 
 ```{r, tidy = TRUE}
@@ -175,3 +288,389 @@ title(main = "Percent Owner Occupied", col.main = "white", line = -1)
 par(o.par)
 
 ```
+
+
+## Raster in a Minute
+
+Let us delve into the world of rasters. A type of raster can be created using just input points called a kernel density raster, which can be used to visualize relationships, but is prone to manipulation and can become misleading very quickly.
+
+```{r, tidy = TRUE, echo = FALSE}
+head(breach) # Note: no underlying data
+
+breach.dens  <-  kde.points(breach, lims = tracts) # Create kernel density values, to then convert to raster
+
+class(breach.dens) # SpatialPixelDataFrame
+
+head(data.frame(breach.dens)) # Note the kde values added
+
+breach.dense.grid <- as(breach.dens, "SpatialGridDataFrame") # Use 'as' to coerce into SpatialGridDataFrame (raster)
+
+head(data.frame(breach.dense.grid)) # look at data
+
+image(breach.dense.grid, #Note the image() function for plotting
+     col = colorRampPalette(brewer.pal(9, "Reds"))(100)
+     )
+
+```
+So this is a raster "heatmap" of where breaches of the peace happen, but it doesn't have any context.
+
+It would be nice if we could have a strong outline for the city, with lighter internal divisions, and not show anything outside the city. First, we need to create a masking polygon, then create an outline polygon, and then add the blocks, but with transparency.
+
+```{r, tidy = TRUE, echo = FALSE}
+#repeated for R markdown
+image(breach.dense.grid, #Note the image() function for plotting
+     col = colorRampPalette(brewer.pal(9, "Reds"))(100)
+     )
+
+# Making an outline via the Union function
+blocks.outline <- gUnaryUnion(blocks, id = NULL)
+
+# This produces a warning; but they have the same proj4string?
+masker <- poly.outer(breach.dense.grid, blocks.outline) # Create mask for raster
+
+plot(masker, 
+     border = "white",
+     col = "white",
+     add = TRUE)
+
+#Plot the block outlines, but mostly transparent
+plot(blocks, add = TRUE, 
+     border = "#00000046") # Overlay boundaries for context
+
+# Plot a black outline
+plot(blocks.outline,
+     border = "black", 
+     lwd = 2, # Make thicker; line weight 2
+     add = TRUE)
+
+title(main = "Breaches of the Peace Heatmap")
+
+```
+-------------------
+
+## Importing Shapefiles
+
+Here we will import a shapefile with attribute data using *rgdal*, subset it to the area we want using attributes and a clipping polygon (with the *GISTools* package), and make a couple simple maps. 
+
+Available spatial data often comes in the nearly-universal shapefile format (.shp), but R by default isn't able to process shapefiles.
+
+As with everything else, you need the right package. There are several options, including *rgdal*, *maptools*, and *PBSmapping* (more information [here](https://www.nceas.ucsb.edu/scicomp/usecases/ReadWriteESRIShapeFiles))
+
+While most of this tutorial relies on *GISTools*, which itself depends on several other spatial packages including *maptools*, *rgdal* is probably the most straightforward way as it automagically gets the projection information if provided in the shapefile.
+
+The shapefile we will be using is from the [US Census](https://www.census.gov/geo/maps-data/data/tiger.html), and contains a significant amount of demographic attributes. Our particular data (Demographic Profile 1 of states) is hosted [here](http://www2.census.gov/geo/tiger/TIGER2010DP1/State_2010Census_DP1.zip).
+
+First, some setup:
+
+```{r, tidy = TRUE, echo = FALSE}
+# install.packages("rgdal") # Uncomment and install if needed
+
+# Probably already loaded through GISTools
+# library(rgdal) 
+suppressPackageStartupMessages(library(rgdal))
+
+rm(list=ls()) # Clear workspace
+
+# setwd() # Set working directory (or Session -> Set Working Directory -> To Source File Location)
+
+```
+
+Now to actually use *readOGR*
+
+```{r tidy = TRUE, echo = FALSE}
+
+# ?readOGR
+setwd('D:/One_Geo/VisualizationTutorial/State_2010Census_DP1')
+
+#D:\One_Geo\VisualizationTutorial\State_2010Census_DP1
+
+# Note that this is one file level down, in State_Census_DP1, and that no file exension is used
+murica <- readOGR("D:/One_Geo/VisualizationTutorial/State_2010Census_DP1", layer = "State_2010Census_DP1")
+
+```
+
+Of course, once it's in there, it's useful to take a look at it in a couple different ways. First:
+
+```{r tidy = TRUE}
+class(murica) # What is this thing?
+
+```
+
+Note that the type of data is *SpatialPolygonsDataFrame*, which means there is geometry (SpatialPolgyons), and attributes (DataFrame). This is important since these can be manipulated separately. For example, you can treat it like a regular data frame.
+
+```{r tidy = TRUE, echo = FALSE}
+colnames(murica) # Note that some basic functions fail due to the data structure
+
+colnames(murica@data)[1:8] # You need to access the right "slot" with @, in this case "data"
+
+slotNames(murica)
+
+murica$NAME10 # But can be treated like a dataframe for some purposes
+
+# str(murica) # Verbose but gives you detailed information on structure of dataset
+
+murica$NAME10[4] # Name of the fourth, best state
+
+murica@proj4string # This is the projection information, useful for later. Note "@"
+
+proj4string(murica) # Same as above
+```
+-------------------
+
+## Subsetting and Clipping Data
+
+We can go ahead and clip out the continental US for a more convenient mapping set. This is a common workflow, since often you are dealing with an area of interest (AOI) that does not align with all of your data. There are two ways to get the continental US: spatially, and by attribute. First, we will use the attributes to subset the desired states. Second, we will use a spatial clip and then we will subset using attributes in the data.
+
+
+## Subsetting using Attributes
+
+Subsetting by attribute is much easier than a spatial clip, so let's start with that. We can create an array of booleans that we can use to subset the SpatialPolygonsDataFrame based off the name of the states and territories we don't want. These are Alaska, Hawaii, and Puerto Rico.
+
+Note the use of logical operators (tips [here](http://www.statmethods.net/management/operators.html)). Super beginner stuff: Here, **!=** is "is not", and **&** is "and", so this reads more or less *"is this state name not Alaska, not Hawaii, and not Puerto Rico?"*
+
+```{r tidy = TRUE, echo = FALSE}
+
+head(murica$NAME10) # This field contains the common names of the states
+
+real.index <- murica$NAME10 != "Alaska" & murica$NAME10 != "Hawaii" & murica$NAME10 != "Puerto Rico" # Create bool list of "real" states
+
+real.index # Note the FALSE instances for those states/territories
+
+murica.spdf <- murica[real.index,] # Subset using real.index
+
+plot(murica.spdf) # Plot it!
+
+# Fancy map of fanciness
+plot(murica.spdf, 
+     bg= "gray40", 
+     col = "gray60", 
+     border = "white") 
+
+```
+
+
+## Subsetting by Spatial Clip
+
+This method is very much more involved, but necessary for true spatial subsetting, where geometry (i.e., polygons) are required, like clipping national data to a state boundary. 
+
+The first step in a spatial clip is getting a clipping polygon, which we will define manually here, but often this another existing area such as a administrative boundary.
+
+Creating a spatial polygon takes a few steps...
+
+```{r tidy = TRUE, echo = FALSE}
+xx <- as.vector(c(-125.85075, -129.45032, -57.45885, -58.35875)) # Coordinates of corners, x
+yy <- as.vector(c(23.44079, 52.25642, 51.61607, 22.80044)) # Coordinates of corners, y
+
+crds  <-  cbind(xx, yy) # Combine x and y to make x, y table
+crds # Check...
+
+# ?Polygon
+
+Pl  <-  Polygon(crds) # Create a polygon (but not a *spatial* polygon!)
+
+ID <- "clip" # This string will be used later to extract names when we re-merge data
+
+Pls  <- Polygons(list(Pl), ID = ID) # Needs to be a list
+
+#Convert Polygons to SpatialPolygons
+# ?SpatialPolygons
+clip.raw <- SpatialPolygons(list(Pls), proj4string = CRS(proj4string(murica)) ) # Note use of proj4string()
+
+## Let's take a look
+
+plot(murica) 
+
+plot(clip.raw, 
+     add = TRUE, 
+     border= "red", 
+     lwd = 2) #overlay (add) clipping polygon, red and line weight 2
+
+```
+Clipping strips SpatialPolygonDataFrames of their attributes, which means you need a mechanism to restore those attributes. Long story short, but you can maintain the IDs of the features, and use those to re-join the dataframe back to the SpatialPolygon. This is easier if the clipping feature is also a SpatialPolygonDataFrame.
+
+```{r tidy = TRUE}
+temp.df <- data.frame(value = 1, row.names = ID) # Create simple DF to add to SpatialPolgyon
+
+clip.spdf <- SpatialPolygonsDataFrame(clip.raw, temp.df) # Merge the SpatialPolygon and temp.df to make SpatialPolygonDataFrame
+
+class(clip.spdf) #Check that it is the correct class (SpatialPolygonDataFrame) and has data included
+
+```
+
+Finally, we are now ready for the actual clip.
+
+```{r tidy = TRUE, echo = FALSE}
+# install.packages("GISTools")
+# library(GISTools) # Need GISTools Library
+# suppressPackageStartupMessages(library(GISTools))
+
+# ?gIntersection
+
+real.murica.sp  <-  gIntersection(clip.spdf, murica, byid = TRUE) # byid maintains the original IDs
+
+plot(real.murica.sp)# Neat! Too bad Michigan is all messed up.The census has some interesting feelings about lakes.
+     
+class(real.murica.sp) # But no data! (just SpatialPolygon)
+
+```
+
+As you can see, the clip worked but there is no data. Unfortunately, there is no completely straightforward way of doing a clip on a SpatialDataFrame. 
+
+What you have to do is subset get an array of the maintained polgyons and use that to subset the original dataframe, then re-join that dataframe to our new SpatialPolygons.
+
+First, we need the array that tells us which polygons we kept. This is saved in the ID of the polygons (since we clipped with **byid =TRUE**), which is a little tricky to access.
+
+```{r tidy = TRUE, echo = FALSE}
+
+# We can access the ID's individually like this:
+real.murica.sp@polygons[[1]]@ID # First polygon, ID field
+
+#sapply however lets us do this for all polygons at once.
+p.names <- sapply(real.murica.sp@polygons, function(x) x@ID) # Extracts names of polygons
+p.names # Check results
+
+# Splitting the strings to get ID number
+
+# install.packages("stringr")
+library(stringr) # for the str_split_fixed
+
+p.names.2 <- str_split_fixed(p.names, " ", n = 2) # Split p.names using a space, return two columns
+p.names.2 #Check results
+
+p.num <- as.numeric(p.names.2[,2])
+p.num # Check results
+
+# In order to use this as an index to subset our data, we need to add 1 since R starts indices at 1, not 0
+p.num <- p.num + 1 # Adds 1 to all values, for use as index 
+
+```
+
+Now we can actually subset the data from the original *murica* dataset and combine it with the SpatialPolygon
+
+```{r tidy = TRUE, echo = FALSE}
+
+murica.data <- data.frame(murica)[p.num,] # Use p.num as the indices to subset murica
+
+head(murica.data[1:8]) # Check results, first 8 columns
+
+nrow(data.frame(murica)) # 52 rows
+
+nrow(murica.data) # 48 rows, yay!
+```
+
+Finally, we can smash that data back into a SpatialPolgygons**DataFrame** using the function... that is, uh, also named that.
+
+```{r tidy = TRUE}
+
+murica.spdf.2  <-  SpatialPolygonsDataFrame(real.murica.sp, data = murica.data, match.ID = FALSE) # Create SpatialPolygonDataFrame
+
+class(murica.spdf.2) # Check results - Note the object type
+slotNames(murica.spdf.2) #Check results - Note the Data slot
+
+plot(murica.spdf.2, col = "gray90") # Plot that thang
+
+```
+
+## Some Maps 
+
+Awesome, we now have the real 'Murica ready to go. We can now use the census data to make a couple informative maps. The most obvious is choropleth maps. Choropleth maps should not be used to map *totals*, but instead should be used to map proportions, since the various sizes of features can mislead readers. So, to map population, let's roll with population density. Note that the rather obtuse names for the fields are explained in an .xls file that came in the same .zip as the shapefile.
+
+```{r tidy = TRUE, echo = FALSE}
+head(murica.spdf$ALAND10)
+
+murica.spdf$ALANDSQMI <-  (murica.spdf$ALAND10)*3.861e-07 # Conversion from meters to miles, into new field
+head(murica.spdf$ALANDSQMI) # Check results
+
+murica.spdf$ALANDSQMI[murica.spdf$NAME10 == "New Mexico"] # Matches the Google
+
+murica.spdf$DP0010001[murica.spdf$NAME10 == "New Mexico"] # Population
+
+murica.spdf$POPDENS <- murica.spdf$DP0010001 / murica.spdf$ALANDSQMI #Create POPDENS field, calculate population density
+
+head(murica.spdf$POPDENS) # Check results - seems reasonable
+```
+
+Now to get mapping... first, we need to create a color scheme, then we can use the choropleth function in GISTools to quickly make a choropleth map.
+
+```{r tidy = TRUE, echo = FALSE}
+#display.brewer.all()
+
+pop.dens.shades  <-  auto.shading(murica.spdf$POPDENS,  cols = brewer.pal(5,'YlGnBu')) #Create a new color palette, 5 shades
+
+# ?choropleth # A function within GISTools
+
+# Create the map, use POPDENS data, use colors pop.dens.shades, and gray10 border
+choropleth(murica.spdf, murica.spdf$POPDENS, pop.dens.shades, border = "gray10")
+
+# Using the title function separately gives you more options 
+
+title("Density of 'Muricans", line = -2, col.main = "gray20", cex.main = 2) 
+
+choro.legend(-125.5, 29.5, pop.dens.shades, bty ="n",  title = "Folks per Square Mile") # Placed manually, use our shades array, and remove legend box
+```
+
+Legends are an art unto themselves, but lots of aesthetic options are available through the various parameters listed [here](https://www.rdocumentation.org/packages/graphics/versions/3.3.2/topics/legend?).
+
+## Reprojecting
+
+You may have noticed that the top of the continental US is straight, which depending on how picky you are looks awful. This is a result of the map projection used, and is something that can be changed. This is the sort of thing that is easy to code, but actually requires a lot of domain knowledge. Map projections are complicated beasts, and it's often best to use something established, such as what your source data uses. You can also Google the best projections for your particular area of interest.
+
+Once you know the name or class of projection you need, then what? Like everything else, you need the right format.
+
+Typically projection information in R is contained with proj4strings (PROJ.4 strings), which are seemingly structured to confuse and deceive, but often something like an EPSG code is referenced elsewhere. Fortunately, these can be translated. Let's say you have a totally sick heads up on a dope map projection for the continental US called US National Atlas Equal Area, and you have the EPSG code, which is 2163.
+
+```{r tidy = TRUE, echo = FALSE}
+# These functions are from rgdal, which is loaded with GISTools
+
+EPSG <- make_EPSG() # Create list of ESPG codes
+head(EPSG) # Quite the list!
+
+lambert.ea <- subset(EPSG, code==2163)$prj4 # Subset using EPSG code
+
+lambert.ea
+```
+
+Of course, you can naturally look this up all online, which is what (spatialreference.org)[http://spatialreference.org/] is for. You can search for projections, and pull the PROJ.4 string directly. Here is the page for the example above: (US National Atlas Equal Area)[http://spatialreference.org/ref/epsg/2163/].
+
+```{r tidy = TRUE}
+
+murica.lambert <- spTransform(murica.spdf, CRS(lambert.ea)) # CRS interfaces with PROJ.4 and parses the projection for spTransform
+# summary(murica.lambert)
+plot(murica.lambert) # Oooh pretty curve!
+```
+
+Okay, now to just re-do our previous map with our reprojected data.
+
+```{r tidy = TRUE, echo = FALSE}
+o.par <- par(no.readonly = TRUE)
+
+par(mar = c(1, 1, 1, 1) )
+
+choropleth(murica.lambert, 
+           murica.lambert$POPDENS, 
+           pop.dens.shades, 
+           border = NA) # Create the map, use POPDENS data, use colors pop.dens.shades, and gray10 border
+
+plot(murica.lambert, 
+     add = TRUE, 
+     border = "#0000003C")
+
+title("Density of 'Muricans", 
+      line = -1.5, 
+      col.main = "gray20", 
+      cex.main = 2) # Create title, move it down two lines, make it gray, make it bigger (cex)
+
+#Note that since the coordinate system changed, we need to change our legend coordinates:
+choro.legend(-2250000, -1643980, 
+             border = "gray10",
+             pop.dens.shades, 
+             bty ="n",  
+             title = "Folks per Square Mile")
+
+par(o.par)
+```
+
+### Reference
+#### This section is adapted from the book (An Introduction to R for Spatial Analysis and Mapping)[https://www.amazon.com/Introduction-Spatial-Analysis-Mapping/dp/1446272958].
+
+
