@@ -6,16 +6,16 @@ Jingtong Feng and Zhaohu(Jonathan) Fan
 
 # Project 1
 
-#### Introduction
+## Introduction
 The 2016 New York City crime dataset provides a special opportunity to play with data visually. As a a resident living close to Harlem, I am interested to see the crimes patterns near the neighborhood. Since the dataset covers a wide variety of crimes, visualizing them all at once might wash out any patterns contained in smaller subgroups. I have elected to see if there are any patterns within three selected crimes (Robbery, Harrassment, and Felony Assault) that can be explored visually.
 
 
-#### The Data
+## The Data
 The data was downloaded from the NYC Open Data (https://data.cityofnewyork.us/Public-Safety/NYPD-Complaint-Data-Current-YTD/5uac-w243)
 I extracted the variales of date and time of the incident occurence, boroughs, categories of the crimes, and the coordinates (latitude and longitude) of the incident. 
 
 
-#### Data wrangling
+##  Data wrangling
 
 ```r
 library(dplyr)
@@ -118,9 +118,7 @@ mapdata %>% group_by(OFNS_DESC) %>% summarise(n = n())
 ## 2  HARRASSMENT 2 65928
 ## 3        ROBBERY 15499
 ```
-
-
-#### Mapping
+## Mapping
 We get the map of NYC.
 
 ```r
@@ -148,8 +146,7 @@ ggmap(myMap, extent = "device", legend = "topleft") + geom_point(aes(x = as.nume
 
 ![](index_files/figure-html/unnamed-chunk-3-2.png)<!-- -->
 
-
-#### Comparing the three selected crimes
+## Comparing the three selected crimes
 The colors all overlap and obscure one another. No patterns are readily visible. So I decide to create a map by category will be more revealing.
 
 
@@ -162,8 +159,7 @@ ggmap(myMap, extent = "device") + geom_point(aes(x = as.numeric(Longitude),
 
 ![](index_files/figure-html/unnamed-chunk-4-1.png)<!-- -->
 
-
-#### Creating Density Map
+## Creating Density Map
 Now try a contour plot. We will estimate the density of crimes from our longitude and latitudes and use that to plot contours. This should more easily reveal patterns and hotspots for the selected crimes.
 
 ```r
@@ -176,17 +172,14 @@ ggmap(myMap, extent = "device", legend = "topleft") + contours + scale_alpha_con
 ```
 
 ![](index_files/figure-html/unnamed-chunk-5-1.png)<!-- -->
-
-
-#### Take a closer look of the Harlem area
+## Take a closer look of the Harlem area
 This map seems much more informative. It reveals a giant hotspot in the Harlem neighborhood, with smaller hotspots in the surrounding neighborhoods. Additionally, there are spots in the southern Bronx area. So pull the map in to focus on these areas. Additionally, lets look at maps by specific category of crime.
 
 ```r
 lims <- coord_map(xlim = c(-73.74, -74.1), ylim = c(40.61, 40.92))
-
 ggmap(myMap, extent = "device", legend = "topleft") + lims + contours + scale_alpha_continuous(range = c(0.25, 
     0.4), guide = "none") + scale_fill_gradient("Violent\nCrime\nDensity") + 
-    ggtitle("Violent Crime in New York City")
+    ggtitle("Crime in New York City")
 ```
 
 ![](index_files/figure-html/unnamed-chunk-6-1.png)<!-- -->
@@ -194,17 +187,15 @@ ggmap(myMap, extent = "device", legend = "topleft") + lims + contours + scale_al
 ```r
 ggmap(myMap, extent = "device") + lims + contours + scale_alpha_continuous(range = c(0.25, 
     0.4), guide = "none") + scale_fill_gradient("Violent\nCrime\nDensity") + 
-    facet_wrap(~OFNS_DESC) + ggtitle("Violent Crime in New York City")
+    facet_wrap(~OFNS_DESC) + ggtitle("Crime in New York City")
 ```
 
 ![](index_files/figure-html/unnamed-chunk-6-2.png)<!-- -->
 
 
-#### Observation
-
+## Observation
 The overall structure of the contours seem to be about the same as the aggregate, with the largest hotspot centered in the harlem neighborhood southern Brox area. With Felony Assault and Robbery, these occurrences seem to be much more concentrated. Additionally, a hotspot for Harassment appears in the same area. Also, these three crime types generated the shades in the lower Manhattan area and Brooklyn area. 
-
-#### References
+## References
 ##### GGPlot2 Documentation)[https://cran.r-project.org/web/packages/ggplot2/ggplot2.pdf].
 ##### GGPlot2 Quickstart [https://www.nceas.ucsb.edu/~frazier/RSpatialGuides/ggmap/ggmapCheatsheet.pdf].
 
